@@ -22,9 +22,6 @@ namespace shf {
 			std::set<Entity> entities;
 			uint32_t         type_id = -1;
 
-			bool has_deleted_entity_during_update = false;
-			size_t deleted_entity_during_update;
-
 			template<typename T>
 			void track_component_type();
 
