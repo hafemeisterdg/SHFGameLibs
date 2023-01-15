@@ -1,6 +1,18 @@
 #if !defined(SHF_ECS_H)
 #define SHF_ECS_H
 
+#if defined(_WIN32)
+#if defined(BUILD_LIBYTPE_SHARED)
+#define SHF_ECS_API __declspec(dllexport)
+#elif defined(USE_LIBTYPE_SHARED)
+#define SHF_ECS_API __declspec(dllimport)
+#else
+#define SHF_ECS_API 
+#endif // dll check
+#else
+#define SHF_ECS_API 
+#endif // API decls
+
 #define SHF_ECS_MAX_ENTITY_COUNT    65535
 #define SHF_ECS_MAX_COMPONENT_TYPES 32
 
@@ -23,28 +35,28 @@ namespace shf {
 			uint32_t         type_id = -1;
 
 			template<typename T>
-			void track_component_type();
+			void SHF_ECS_API track_component_type();
 
 			virtual void update(float delta_time) = 0;
 		};
 
 		template <typename T>
-		void add_component(Entity e, T comp);
+		SHF_ECS_API void add_component(Entity e, T comp);
 
 		Entity create_entity();
-		void   destroy_entity(Entity e);
+		SHF_ECS_API void   destroy_entity(Entity e);
 
 		template <typename T>
-		T* get_component(Entity e);
+		SHF_ECS_API T* get_component(Entity e);
 
 		template <typename T>
-		void register_component();
+		SHF_ECS_API void register_component();
 
 		template <typename T>
-		T* register_system();
+		SHF_ECS_API T* register_system();
 
 		template <typename T>
-		void remove_component(Entity e);
+		SHF_ECS_API void remove_component(Entity e);
 	}
 }
 
