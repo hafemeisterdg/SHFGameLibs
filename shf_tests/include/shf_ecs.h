@@ -11,19 +11,24 @@
 
 namespace shf {
 	namespace ecs {
-		typedef uint32_t									Entity;
-		typedef std::bitset<SHF_ECS_MAX_COMPONENT_TYPES>	Component_Signature;
+		typedef uint32_t                                 Entity;
+		typedef std::bitset<SHF_ECS_MAX_COMPONENT_TYPES> Component_Signature;
 
 		struct Component {
 			
 		};
 
 		struct System {
-			Component_Signature component_signature;
-			std::set<Entity>	entities;
+			std::set<Entity> entities;
+			uint32_t         type_id = -1;
 
-			void update(float delta_time);
-			virtual void update_entity(Entity e, float delta_time) = 0;
+			bool has_deleted_entity_during_update = false;
+			size_t deleted_entity_during_update;
+
+			template<typename T>
+			void track_component_type();
+
+			virtual void update(float delta_time) = 0;
 		};
 
 		template <typename T>
@@ -78,10 +83,13 @@ namespace shf {
 		};
 
 		typedef void* I_System;
-		typedef void* I_Component_Table;
+
+		struct I_Component_Table {
+			virtual void notify(Notification_Type type, Entity e) = 0;
+		};
 
 		template <typename T>
-		struct Component_Table {
+		struct Component_Table : public I_Component_Table {
 			std::array<T, SHF_ECS_MAX_ENTITY_COUNT> packed_components;
 			std::unordered_map<Entity, uint32_t>    entity_to_packed_index_map;
 			std::unordered_map<uint32_t, Entity>    packed_index_to_entity_map;
@@ -92,8 +100,8 @@ namespace shf {
 				assert(entity_to_packed_index_map.find(e) == entity_to_packed_index_map.end() && "[SHF ECS]: add_component<T> - Component already exists for entity.");
 
 				uint32_t new_component_index = component_count;
-				entity_to_packed_index_map[e] = new_component_index;
-				packed_index_to_entity_map[new_component_index] = e;
+				entity_to_packed_index_map.insert({ e, new_component_index });
+				packed_index_to_entity_map.insert({ new_component_index, e });
 				packed_components[new_component_index] = comp;
 				component_count++;
 			}
@@ -101,15 +109,13 @@ namespace shf {
 			void notify(Notification_Type type, Entity e) {
 				switch (type) {
 					case Notification_Type_Entity_Destroyed: {
-						if (entity_to_packed_index_map.find(e) != entity_to_packed_index_map.end()) {
-							remove_component(e);
-						}
+						remove_component(e);
 					} break;
 				}
 			}
 
 			void remove_component(Entity e) {
-				assert(entity_to_packed_index_map.find(e) != entity_to_packed_index_map.end() && "[SHF ECS]: remove_component<%s> - Entity doesn't own component of requested type.");
+				assert(this->entity_to_packed_index_map.find(e) != this->entity_to_packed_index_map.end() && "[SHF ECS]: remove_component<%s> - Entity doesn't own component of requested type.");
 
 				uint32_t packed_index_of_removed_entity = entity_to_packed_index_map[e];
 				uint32_t packed_index_of_last_element = component_count - 1;
@@ -131,12 +137,15 @@ namespace shf {
 			}
 
 			uint32_t registered_component_type_count = 0;
-			std::unordered_map<const char*, uint32_t>       type_name_table;
-			std::unordered_map<uint32_t, I_Component_Table> component_table_map;
+			std::unordered_map<const char*, uint32_t>        type_name_table;
+			std::unordered_map<uint32_t, I_Component_Table*> component_table_map;
 
 			void notify(Notification_Type type, Entity e) {
-				for(auto pair : component_table_map) {
-					Component_Table<Component>* component_table = (Component_Table<Component>*)pair.second;
+				for (int i = 0; i < registered_component_type_count; i++) {
+					auto pair = component_table_map.find(i);
+					if (pair == component_table_map.end()) continue;
+
+					I_Component_Table* component_table = (I_Component_Table*)pair->second;
 					component_table->notify(type, e);
 				}
 			}
@@ -165,11 +174,15 @@ namespace shf {
 			void notify(Notification_Type type, Entity e) {
 				switch (type) {
 					case Notification_Type_Entity_Component_Update: {
-						for (auto pair : system_table) {
-							System* system = (System*)pair.second;
-							Component_Signature system_signature = system_signature_map[pair.first];
+						for (int i = 0; i < registered_system_type_count; i++) {
+							auto pair = system_table.find(i);
+							if (pair == system_table.end()) continue;
 
-							if ((get_entity_manager()->entity_signature_table[e] & system_signature) == system_signature) {
+							System* system = (System*)pair->second;
+							Component_Signature system_signature = system_signature_map[pair->first];
+							Component_Signature entity_signature = get_entity_manager()->entity_signature_table[e];
+
+							if ((entity_signature & system_signature) == system_signature) {
 								system->entities.insert(e);
 							} else {
 								system->entities.erase(e);
@@ -178,8 +191,11 @@ namespace shf {
 					} break;
 
 					case Notification_Type_Entity_Destroyed: {
-						for (auto pair : system_table) {
-							System* system = (System*)pair.second;
+						for (int i = 0; i < registered_system_type_count; i++) {
+							auto pair = system_table.find(i);
+							if (pair == system_table.end()) continue;
+
+							System* system = (System*)pair->second;
 							system->entities.erase(e);
 						}
 					} break;
@@ -209,10 +225,15 @@ namespace shf {
 			return _system_manager;
 		}	
 
-		void System::update(float delta_time) {
-			for (Entity e : this->entities) {
-				this->update_entity(e, delta_time);
-			}
+		template <typename T>
+		void System::track_component_type() {
+			static_assert(std::is_base_of<Component, T>::value && "[SHF ECS]: System::track_component_type<T> - T must derive from shf::ecs::Component");
+
+			assert(type_id != -1 && "[SHF ECS]:  System::track_component_type<T> - System not registered.");
+			assert(get_component_manager()->type_name_table.find(typeid(T).name()) != get_component_manager()->type_name_table.end() && "[SHF ECS]:  System::track_component_type<T> - Component type not registered.");
+
+			uint32_t component_type_index = get_component_manager()->type_name_table[typeid(T).name()];
+			get_system_manager()->system_signature_map[type_id].set(component_type_index, true);
 		}
 
 		template <typename T>
@@ -241,7 +262,7 @@ namespace shf {
 		}
 
 		void destroy_entity(Entity e) {
-			assert(e < get_entity_manager()->entity_count && "[SHF ECS]: destroy_entity(%u) - Entity ID exceeds current registered bounds.", e);
+			assert(e < get_entity_manager()->entity_count && "[SHF ECS]: destroy_entity(%u) - Entity ID exceeds current registered bounds." && e);
 
 			get_system_manager()->notify(Notification_Type_Entity_Destroyed, e);
 			get_component_manager()->notify(Notification_Type_Entity_Destroyed, e);
@@ -253,12 +274,12 @@ namespace shf {
 
 		template <typename T>
 		T* get_component(Entity e) {
-			assert(get_component_manager()->type_name_table.find(typeid(T).name()) != get_component_manager()->type_name_table.end() && "[SHF ECS]: get_component<%s> - Component type not registered.", typeid(T).name());
+			assert(get_component_manager()->type_name_table.find(typeid(T).name()) != get_component_manager()->type_name_table.end() && "[SHF ECS]: get_component<%s> - Component type not registered." && typeid(T).name());
 			
 			uint32_t component_type_index = get_component_manager()->type_name_table[typeid(T).name()];
 			Component_Table<T>* component_table_for_type = (Component_Table<T>*) get_component_manager()->component_table_map[component_type_index];
 
-			assert(component_table_for_type->entity_to_packed_index_map.find(e) != component_table_for_type->entity_to_packed_index_map.end() && "[SHF ECS]: get_component<%s> - Entity doesn't own component of requested type.", typeid(T).name());
+			assert(component_table_for_type->entity_to_packed_index_map.find(e) != component_table_for_type->entity_to_packed_index_map.end() && "[SHF ECS]: get_component<%s> - Entity doesn't own component of requested type." && typeid(T).name());
 
 			return &component_table_for_type->packed_components[component_table_for_type->entity_to_packed_index_map[e]];
 		}
@@ -266,7 +287,7 @@ namespace shf {
 		template <typename T>
 		void register_component() {
 			static_assert(std::is_base_of<Component, T>::value && "[SHF ECS]: register_component<T> - T must derive from shf::ecs::Component");
-			assert(get_component_manager()->registered_component_type_count < SHF_ECS_MAX_COMPONENT_TYPES && "[SHF ECS]: register_component<%s> - Maximum component types reached.", typeid(T).name());
+			assert(get_component_manager()->registered_component_type_count < SHF_ECS_MAX_COMPONENT_TYPES && "[SHF ECS]: register_component<%s> - Maximum component types reached." && typeid(T).name());
 
 			const char* component_type_name = typeid(T).name();
 			auto entry = get_component_manager()->type_name_table.find(component_type_name);
@@ -276,6 +297,12 @@ namespace shf {
 			get_component_manager()->type_name_table.insert({ component_type_name, get_component_manager()->registered_component_type_count });
 			get_component_manager()->component_table_map.insert({ get_component_manager()->registered_component_type_count, new_table_for_type });
 			get_component_manager()->registered_component_type_count++;
+		}
+
+		template <typename T, typename... Comp_Types>
+		void _assign_component_types_to_system(System* system, T comp, Comp_Types... comp_types) {
+			system->track_component_type<T>();
+			_assign_component_types_to_system(system, comp_types...);
 		}
 
 		template <typename T>
@@ -288,9 +315,11 @@ namespace shf {
 
 
 			T* new_system = new T();
-			get_system_manager()->system_signature_map[get_system_manager()->registered_system_type_count].reset();
-			get_system_manager()->type_name_table.insert({ system_type_name, get_system_manager()->registered_system_type_count });
-			get_system_manager()->system_table.insert({ get_system_manager()->registered_system_type_count, new_system });
+			uint32_t new_system_id = get_system_manager()->registered_system_type_count;
+			get_system_manager()->system_signature_map[new_system_id].reset();
+			get_system_manager()->type_name_table.insert({ system_type_name, new_system_id });
+			get_system_manager()->system_table.insert({ new_system_id, new_system });
+			((System*)new_system)->type_id = new_system_id;
 			get_system_manager()->registered_system_type_count++;
 
 			return new_system;
@@ -299,7 +328,7 @@ namespace shf {
 		template <typename T>
 		void remove_component(Entity e) {
 			static_assert(std::is_base_of<Component, T>::value && "[SHF ECS]: remove_component<%s> - T must derive from shf::ecs::Component");
-			assert(get_component_manager()->type_name_table.find(typeid(T).name()) != get_component_manager()->type_name_table.end() && "[SHF ECS]: remove_component<%s> - Component type not registered.", typeid(T).name());
+			assert(get_component_manager()->type_name_table.find(typeid(T).name()) != get_component_manager()->type_name_table.end() && "[SHF ECS]: remove_component<%s> - Component type not registered." && typeid(T).name());
 
 			uint32_t component_type_index = get_component_manager()->type_name_table[typeid(T).name()];
 			Component_Table<T>* component_table_for_type = (Component_Table<T>*) get_component_manager()->component_table_map[component_type_index];
