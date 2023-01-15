@@ -296,12 +296,6 @@ namespace shf {
 			get_component_manager()->registered_component_type_count++;
 		}
 
-		template <typename T, typename... Comp_Types>
-		void _assign_component_types_to_system(System* system, T comp, Comp_Types... comp_types) {
-			system->track_component_type<T>();
-			_assign_component_types_to_system(system, comp_types...);
-		}
-
 		template <typename T>
 		T* register_system() {
 			static_assert(std::is_base_of<System, T>::value && "[SHF ECS]: register_component<T> - T must derive from shf::ecs::System");
