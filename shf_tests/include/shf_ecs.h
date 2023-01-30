@@ -1,6 +1,8 @@
 #if !defined(SHF_ECS_H)
 #define SHF_ECS_H
 
+// API Decls
+// ================================================
 #if defined(_WIN32)
 #if defined(BUILD_LIBYTPE_SHARED)
 #define SHF_ECS_API __declspec(dllexport)
@@ -12,6 +14,7 @@
 #else
 #define SHF_ECS_API 
 #endif // API decls
+// ================================================
 
 #define SHF_ECS_MAX_ENTITY_COUNT    65535
 #define SHF_ECS_MAX_COMPONENT_TYPES 32
@@ -20,6 +23,7 @@
 #include <stdint.h>
 #include <bitset>
 #include <set>
+#include <typeinfo>
 
 namespace shf {
 	namespace ecs {
@@ -44,7 +48,7 @@ namespace shf {
 		SHF_ECS_API void add_component(Entity e, T comp);
 
 		Entity create_entity();
-		SHF_ECS_API void   destroy_entity(Entity e);
+		SHF_ECS_API void destroy_entity(Entity e);
 
 		template <typename T>
 		SHF_ECS_API T* get_component(Entity e);
