@@ -466,19 +466,19 @@ namespace shf {
 
 		bool Shader::compile_from_source(const char* shader_source) {
 			int compile_status;
-            char compile_log[512];
+			char compile_log[512];
 
-            glShaderSource(this->gl_id, 1, &shader_source, 0);
-            glCompileShader(this->gl_id);
-            glGetShaderiv(this->gl_id, GL_COMPILE_STATUS, &compile_status);
-            if (!compile_status) {
-                glGetShaderInfoLog(this->gl_id, 512, 0, compile_log);
+			glShaderSource(this->gl_id, 1, &shader_source, 0);
+			glCompileShader(this->gl_id);
+			glGetShaderiv(this->gl_id, GL_COMPILE_STATUS, &compile_status);
+			if (!compile_status) {
+				glGetShaderInfoLog(this->gl_id, 512, 0, compile_log);
 
-                printf("Shader Compilation Error: \n");
-                printf("%s \n", compile_log);
+				printf("Shader Compilation Error: \n");
+				printf("%s \n", compile_log);
 
-                return false;
-            }
+				return false;
+			}
 
 			return true;
 		}
@@ -495,21 +495,21 @@ namespace shf {
 
 		bool Shader_Program::link() {
 			int link_status;
-	        char link_log[512];
+			char link_log[512];
 
-	        glLinkProgram(this->gl_id);
-	        glGetProgramiv(this->gl_id, GL_LINK_STATUS, &link_status);
+			glLinkProgram(this->gl_id);
+			glGetProgramiv(this->gl_id, GL_LINK_STATUS, &link_status);
 
-	        if (!link_status) {
-		        glGetProgramInfoLog(this->gl_id, 512, 0, link_log);
+			if (!link_status) {
+				glGetProgramInfoLog(this->gl_id, 512, 0, link_log);
 
-		        printf("Shader Program Link Error: \n");
-		        printf("%s \n", link_log);
+				printf("Shader Program Link Error: \n");
+				printf("%s \n", link_log);
 
-		        return false;
-            }
+				return false;
+			}
 
-            return true;
+			return true;
 		}
 
 		void Shader_Program::unbind() {
@@ -544,11 +544,11 @@ namespace shf {
 			}
 
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-            glTexImage2D(GL_TEXTURE_2D, 0, gl_format, width, height, 0, gl_format, GL_UNSIGNED_BYTE, pixel_data);
+			glTexImage2D(GL_TEXTURE_2D, 0, gl_format, width, height, 0, gl_format, GL_UNSIGNED_BYTE, pixel_data);
 
-            glGenerateMipmap(GL_TEXTURE_2D);
+			glGenerateMipmap(GL_TEXTURE_2D);
 		}
 
 		void Texture::unbind() {
