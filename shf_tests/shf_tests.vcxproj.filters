@@ -23,5 +23,14 @@
     <ClInclude Include="include\shf_ecs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\shf_math.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\shf_platform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\shf_gl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
