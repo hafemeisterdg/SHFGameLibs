@@ -160,7 +160,7 @@ bool setup_game_state() {
 	shf::gl::create_vertex_buffer(renderable.vertex_buffer);
 	shf::gl::create_index_buffer(renderable.index_buffer);
 	renderable.vertex_buffer->buffer_data(&quad_vertices[0], 4, GL_STATIC_DRAW);
-	renderable.index_buffer->buffer_data(&quad_indices[0], 7, GL_STATIC_DRAW);
+	renderable.index_buffer->buffer_data(&quad_indices[0], 6, GL_STATIC_DRAW);
 
 	shf::ecs::add_component<Component_Transform>(g_game_state->player, transform);
 	shf::ecs::add_component<Component_Velocity>(g_game_state->player, velocity);
